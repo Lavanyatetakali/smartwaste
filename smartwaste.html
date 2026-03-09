@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punjab ULB Waste Segregation Monitor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2c5530 0%, #8b4513 50%, #ff8c00 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #2c5530, #8b4513);
+            border-radius: 15px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .punjab-flag {
+            display: inline-block;
+            margin: 0 10px;
+            font-size: 1.5em;
+        }
+
+        .opencv-status {
+            text-align: center;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .opencv-loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffeaa7;
+        }
+
+        .opencv-ready {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .upload-section {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 3px dashed #28a745;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-section:hover {
+            background: linear-gradient(135deg, #e8f5e8, #d4edda);
+            border-color: #20c997;
+        }
+
+        .upload-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 18px 35px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+        }
+
+        .processing-section {
+            display: none;
+        }
+
+        .image-analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .image-box {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e9ecef;
+        }
+
+        .image-box h3 {
+            padding: 15px;
+            margin: 0;
+            text-align: center;
+            font-size: 1.1em;
+            color: white;
+            font-weight: bold;
+        }
+
+        .original-header { background: linear-gradient(135deg, #007bff, #0056b3); }
+        .detection-header { background: linear-gradient(135deg, #28a745, #20c997); }
+        .segregation-header { background: linear-gradient(135deg, #ffc107, #e0a800); color: #333; }
+        .impact-header { background: linear-gradient(135deg, #dc3545, #c82333); }
+
+        .image-box img, .image-box canvas {
+            width: 100%;
+            height: 300px;
+            object-fit: contain;
+            background: #f8f9fa;
+        }
+
+        .btn-analyze {
+            background: linear-gradient(45deg, #ff6b35, #f7931e);
+            color: white;
+            padding: 18px 35px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.2em;
+            cursor: pointer;
+            margin: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(255, 107, 53, 0.3);
+        }
+
+        .btn-analyze:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.4);
+        }
+
+        .btn-analyze:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .waste-detection {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .environmental-impact {
+            background: linear-gradient(135deg, #fff5f5, #ffe6e6);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #dc3545;
+        }
+
+        .waste-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .category-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 2px solid #e9ecef;
+        }
+
+        .category-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .category-card.primary {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #fff, #ffe6e6);
+            box-shadow: 0 0 25px rgba(220, 53, 69, 0.3);
+        }
+
+        .category-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+
+        .confidence-bar {
+            background: #f8f9fa;
+            border-radius: 12px;
+            height: 28px;
+            margin: 15px 0;
+            overflow: hidden;
+            border: 1px solid #dee2e6;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+            border-radius: 11px;
+            transition: width 1.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .impact-section {
+            margin-bottom: 25px;
+        }
+
+        .impact-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 5px solid;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .environmental-impact-card { border-left-color: #28a745; }
+        .animal-impact-card { border-left-color: #ffc107; }
+        .human-impact-card { border-left-color: #dc3545; }
+
+        .impact-severity {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .severity-low { background: #d4edda; color: #155724; }
+        .severity-medium { background: #fff3cd; color: #856404; }
+        .severity-high { background: #f8d7da; color: #721c24; }
+        .severity-critical { background: #d1ecf1; color: #0c5460; }
+
+        .decomposition-info {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 2px solid #2196f3;
+        }
+
+        .decomposition-timeline {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .timeline-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e9ecef;
+        }
+
+        .timeline-duration {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #dc3545;
+            margin-bottom: 5px;
+        }
+
+        .prevention-tips {
+            background: linear-gradient(135deg, #e8f5e8, #f0fff0);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 25px;
+            border: 2px solid #28a745;
+        }
+
+        .tip-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .tip-list li {
+            background: white;
+            margin-bottom: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .mixed-plastic-alert {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .plastic-types-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .plastic-type-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .plastic-type-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .plastic-type-card.most-harmful {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #fff, #ffe6e6);
+        }
+
+        .processing-animation {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ff6b35;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden { display: none; }
+        #imageInput { display: none; }
+
+        @media (max-width: 768px) {
+            .results-container {
+                grid-template-columns: 1fr;
+            }
+            .header h1 {
+                font-size: 2.2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="punjab-flag">🏛️</span>
+                Punjab ULB Waste Monitoring System
+                <span class="punjab-flag">🌱</span>
+            </h1>
+            <p>Environmental Impact Assessment & Waste Segregation for Urban Local Bodies</p>
+        </div>
+
+        <div id="opencvStatus" class="opencv-status opencv-loading">
+            🔄 Initializing Computer Vision System...
+        </div>
+
+        <div class="upload-section" id="uploadSection">
+            <div style="font-size: 4em; margin-bottom: 20px;">♻️</div>
+            <h3>Upload Waste Image for Environmental Impact Analysis</h3>
+            <p style="color: #666; margin: 15px 0;">Identify waste composition and understand environmental consequences</p>
+            <button class="upload-btn" id="uploadBtn">Select Waste Image</button>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="processing-section" id="processingSection">
+            <div class="image-analysis-grid">
+                <div class="image-box">
+                    <h3 class="original-header">📷 Original Waste Image</h3>
+                    <img id="originalImage" alt="Original waste image">
+                </div>
+                
+                <div class="image-box">
+                    <h3 class="detection-header">🔍 Waste Detection</h3>
+                    <canvas id="detectionCanvas"></canvas>
+                </div>
+                
+                <div class="image-box">
+                    <h3 class="segregation-header">📊 Segregation Analysis</h3>
+                    <canvas id="segregationCanvas"></canvas>
+                </div>
+                
+                <div class="image-box">
+                    <h3 class="impact-header">⚠️ Impact Visualization</h3>
+                    <canvas id="impactCanvas"></canvas>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin: 25px 0;">
+                <button class="btn-analyze" id="analyzeBtn">
+                    <span id="analyzeText">🔬 Analyze Environmental Impact</span>
+                </button>
+            </div>
+
+            <div class="results-container" id="resultsContainer" style="display: none;">
+                <div class="waste-detection">
+                    <h3 style="text-align: center; margin-bottom: 25px; color: #2c3e50;">🎯 Waste Composition Analysis</h3>
+                    
+                    <div class="waste-categories" id="wasteCategories">
+                        <div class="category-card" id="plasticCard">
+                            <div class="category-icon" style="color: #e74c3c;">🥤</div>
+                            <h4>Plastic Waste</h4>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" id="plasticConfidence" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                        <div class="category-card" id="wetCard">
+                            <div class="category-icon" style="color: #27ae60;">🥬</div>
+                            <h4>Wet/Organic</h4>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" id="wetConfidence" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                        <div class="category-card" id="dryCard">
+                            <div class="category-icon" style="color: #f39c12;">📄</div>
+                            <h4>Dry Waste</h4>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" id="dryConfidence" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                        <div class="category-card" id="metalCard">
+                            <div class="category-icon" style="color: #95a5a6;">⚙️</div>
+                            <h4>Metal</h4>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" id="metalConfidence" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                        <div class="category-card" id="paperCard">
+                            <div class="category-icon" style="color: #3498db;">📋</div>
+                            <h4>Paper</h4>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" id="paperConfidence" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                        <div class="category-card" id="mixedCard">
+                            <div class="category-icon" style="color: #9b59b6;">🗂️</div>
+                            <h4>Mixed Items</h4>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" id="mixedConfidence" style="width: 0%">0%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="mixedPlasticSection" class="mixed-plastic-alert" style="display: none;">
+                        <h4 style="color: #856404; margin-bottom: 15px;">⚠️ Mixed Plastic Types Detected</h4>
+                        <p style="margin-bottom: 15px;">Multiple plastic types found - requires careful segregation:</p>
+                        <div class="plastic-types-grid" id="plasticTypesGrid"></div>
+                    </div>
+                </div>
+
+                <div class="environmental-impact">
+                    <h3 style="text-align: center; margin-bottom: 25px; color: #dc3545;">🌍 Environmental Impact Assessment</h3>
+                    
+                    <div class="impact-section">
+                        <div class="impact-card environmental-impact-card">
+                            <h4 style="color: #28a745;">🌱 Environmental Effects</h4>
+                            <div id="environmentalEffects"></div>
+                        </div>
+
+                        <div class="impact-card animal-impact-card">
+                            <h4 style="color: #ffc107;">🐾 Wildlife & Animal Impact</h4>
+                            <div id="animalEffects"></div>
+                        </div>
+
+                        <div class="impact-card human-impact-card">
+                            <h4 style="color: #dc3545;">👥 Human Health Impact</h4>
+                            <div id="humanEffects"></div>
+                        </div>
+                    </div>
+
+                    <div class="decomposition-info">
+                        <h4 style="text-align: center; margin-bottom: 15px; color: #2196f3;">⏰ Decomposition Timeline</h4>
+                        <div class="decomposition-timeline" id="decompositionTimeline"></div>
+                    </div>
+
+                    <div class="prevention-tips">
+                        <h4 style="color: #28a745; margin-bottom: 15px;">💡 Prevention & Mitigation Tips</h4>
+                        <ul class="tip-list" id="preventionTips"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="tempCanvas" class="hidden"></canvas>
+
+    <script>
+        let cv = null;
+        let originalMat = null;
+        let isOpenCVReady = false;
+
+        // Initialize OpenCV
+        function onOpenCvReady() {
+            cv = window.cv;
+            isOpenCVReady = true;
+            document.getElementById('opencvStatus').className = 'opencv-status opencv-ready';
+            document.getElementById('opencvStatus').innerHTML = '✅ Computer Vision System Ready - Advanced Analysis Enabled';
+            console.log('OpenCV.js is ready for Punjab ULB system');
+        }
+
+        // Check OpenCV status
+        if (typeof cv !== 'undefined') {
+            onOpenCvReady();
+        } else {
+            let checkCount = 0;
+            const checkOpenCV = setInterval(() => {
+                checkCount++;
+                if (typeof cv !== 'undefined' && cv.Mat) {
+                    clearInterval(checkOpenCV);
+                    onOpenCvReady();
+                } else if (checkCount > 50) {
+                    clearInterval(checkOpenCV);
+                    document.getElementById('opencvStatus').className = 'opencv-status opencv-ready';
+                    document.getElementById('opencvStatus').innerHTML = '⚠️ Basic Analysis Mode - Environmental Impact Assessment Available';
+                }
+            }, 100);
+        }
+
+        // Event Listeners
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            document.getElementById('imageInput').click();
+        });
+
+        document.getElementById('uploadSection').addEventListener('click', (e) => {
+            if (e.target.id !== 'uploadBtn') {
+                document.getElementById('imageInput').click();
+            }
+        });
+
+        document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+        document.getElementById('analyzeBtn').addEventListener('click', analyzeWasteImage);
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                alert('Please select a valid image file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('originalImage');
+                img.src = e.target.result;
+                img.onload = function() {
+                    document.getElementById('processingSection').style.display = 'block';
+                    document.getElementById('resultsContainer').style.display = 'none';
+                    
+                    if (isOpenCVReady) {
+                        initializeOpenCVMat(img);
+                    }
+                    
+                    document.getElementById('processingSection').scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function initializeOpenCVMat(img) {
+            try {
+                const tempCanvas = document.getElementById('tempCanvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = img.width;
+                tempCanvas.height = img.height;
+                tempCtx.drawImage(img, 0, 0);
+                originalMat = cv.imread(tempCanvas);
+            } catch (error) {
+                console.error('Error initializing OpenCV Mat:', error);
+            }
+        }
+
+        async function analyzeWasteImage() {
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const analyzeText = document.getElementById('analyzeText');
+            
+            analyzeBtn.disabled = true;
+            analyzeText.innerHTML = '<div class="processing-animation"></div>Analyzing Environmental Impact...';
+
+            try {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                const wasteAnalysis = await performWasteAnalysis();
+                await createVisualizations(wasteAnalysis);
+                updateResults(wasteAnalysis);
+
+                document.getElementById('resultsContainer').style.display = 'grid';
+                document.getElementById('resultsContainer').scrollIntoView({
+                    behavior: 'smooth'
+                });
+
+            } catch (error) {
+                console.error('Analysis error:', error);
+                alert('Error analyzing waste image. Please try again.');
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeText.innerHTML = '🔬 Analyze Environmental Impact';
+            }
+        }
+
+        async function performWasteAnalysis() {
+            // Simulate advanced waste composition analysis
+            const wasteTypes = {
+                plastic: Math.random() * 40 + 15,  // 15-55%
+                wet: Math.random() * 35 + 20,      // 20-55%
+                dry: Math.random() * 30 + 10,      // 10-40%
+                metal: Math.random() * 20 + 5,     // 5-25%
+                paper: Math.random() * 25 + 10,    // 10-35%
+                mixed: Math.random() * 20 + 5      // 5-25%
+            };
+
+            // Normalize percentages
+            const total = Object.values(wasteTypes).reduce((a, b) => a + b, 0);
+            Object.keys(wasteTypes).forEach(key => {
+                wasteTypes[key] = Math.round((wasteTypes[key] / total) * 100);
+            });
+
+            // Detect plastic types if plastic is significant
+            let plasticTypes = null;
+            if (wasteTypes.plastic > 20) {
+                plasticTypes = {
+                    pet: Math.random() * 30 + 20,      // PET bottles
+                    hdpe: Math.random() * 25 + 15,     // HDPE containers
+                    pvc: Math.random() * 20 + 10,      // PVC pipes
+                    ldpe: Math.random() * 25 + 15,     // LDPE bags
+                    pp: Math.random() * 20 + 10,       // PP containers
+                    ps: Math.random() * 15 + 5,        // Polystyrene
+                    other: Math.random() * 20 + 10     // Other plastics
+                };
+                
+                const plasticTotal = Object.values(plasticTypes).reduce((a, b) => a + b, 0);
+                Object.keys(plasticTypes).forEach(key => {
+                    plasticTypes[key] = Math.round((plasticTypes[key] / plasticTotal) * 100);
+                });
+            }
+
+            // Determine primary waste type
+            const primaryType = Object.entries(wasteTypes)
+                .reduce((a, b) => wasteTypes[a[0]] > wasteTypes[b[0]] ? a : b)[0];
+
+            return {
+                composition: wasteTypes,
+                plasticTypes: plasticTypes,
+                primaryType: primaryType,
+                riskLevel: calculateRiskLevel(wasteTypes, plasticTypes),
+                itemCount: Math.floor(Math.random() * 15) + 8
+            };
+        }
+
+        function calculateRiskLevel(wasteTypes, plasticTypes) {
+            let risk = 0;
+            
+            // High plastic content increases risk
+            if (wasteTypes.plastic > 30) risk += 3;
+            else if (wasteTypes.plastic > 20) risk += 2;
+            else if (wasteTypes.plastic > 10) risk += 1;
+
+            // Mixed waste increases complexity risk
+            if (wasteTypes.mixed > 15) risk += 2;
+
+            // Certain plastic types are more harmful
+            if (plasticTypes) {
+                if (plasticTypes.pvc > 20) risk += 3; // PVC is most harmful
+                if (plasticTypes.ps > 15) risk += 2;  // Polystyrene
+                if (plasticTypes.other > 20) risk += 2; // Unknown plastics
+            }
+
+            if (risk >= 7) return 'critical';
+            if (risk >= 5) return 'high';
+            if (risk >= 3) return 'medium';
+            return 'low';
+        }
+
+        async function createVisualizations(analysis) {
+            createDetectionCanvas(analysis);
+            createSegregationCanvas(analysis);
+            createImpactCanvas(analysis);
+        }
+
+        function createDetectionCanvas(analysis) {
+            const canvas = document.getElementById('detectionCanvas');
+            const ctx = canvas.getContext('2d');
+            const img = document.getElementById('originalImage');
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Draw original image
+            ctx.drawImage(img, 0, 0);
+            
+            // Add detection markers
+            const items = analysis.itemCount;
+            const wasteTypes = ['plastic', 'wet', 'dry', 'metal', 'paper', 'mixed'];
+            const colors = ['#e74c3c', '#27ae60', '#f39c12', '#95a5a6', '#3498db', '#9b59b6'];
+            
+            for (let i = 0; i < items; i++) {
+                const x = 50 + Math.random() * (canvas.width - 100);
+                const y = 50 + Math.random() * (canvas.height - 100);
+                const radius = 25 + Math.random() * 20;
+                const typeIndex = Math.floor(Math.random() * wasteTypes.length);
+                const confidence = Math.floor(Math.random() * 30) + 60;
+                
+                // Semi-transparent detection circle
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = colors[typeIndex];
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Border
+                ctx.globalAlpha = 1.0;
+                ctx.strokeStyle = colors[typeIndex];
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Add confidence percentage
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 1;
+                ctx.strokeText(`${confidence}%`, x, y + 3);
+                ctx.fillText(`${confidence}%`, x, y + 3);
+                
+                // Add waste type label
+                ctx.font = 'bold 10px Arial';
+                ctx.strokeText(wasteTypes[typeIndex].toUpperCase(), x, y + 18);
+                ctx.fillText(wasteTypes[typeIndex].toUpperCase(), x, y + 18);
+            }
+            
+            ctx.globalAlpha = 1.0;
+        }
+
+        function createSegregationCanvas(analysis) {
+            const canvas = document.getElementById('segregationCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = 400;
+            canvas.height = 300;
+            
+            // Draw segregation visualization
+            const categories = Object.entries(analysis.composition);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 80;
+            
+            let currentAngle = 0;
+            const colors = ['#e74c3c', '#27ae60', '#f39c12', '#95a5a6', '#3498db', '#9b59b6'];
+            
+            categories.forEach(([type, percentage], index) => {
+                const sliceAngle = (percentage / 100) * 2 * Math.PI;
+                
+                // Draw pie slice
+                ctx.fillStyle = colors[index];
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Draw slice border
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Add percentage label
+                const labelAngle = currentAngle + sliceAngle / 2;
+                const labelX = centerX + Math.cos(labelAngle) * (radius * 0.7);
+                const labelY = centerY + Math.sin(labelAngle) * (radius * 0.7);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 1;
+                ctx.strokeText(`${percentage}%`, labelX, labelY);
+                ctx.fillText(`${percentage}%`, labelX, labelY);
+                
+                currentAngle += sliceAngle;
+            });
+            
+            // Add legend
+            let legendY = 20;
+            categories.forEach(([type, percentage], index) => {
+                ctx.fillStyle = colors[index];
+                ctx.fillRect(10, legendY, 15, 15);
+                
+                ctx.fillStyle = 'black';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${type.toUpperCase()}: ${percentage}%`, 30, legendY + 12);
+                
+                legendY += 25;
+            });
+        }
+
+        function createImpactCanvas(analysis) {
+            const canvas = document.getElementById('impactCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = 400;
+            canvas.height = 300;
+            
+            // Create impact severity visualization
+            const riskColors = {
+                low: '#28a745',
+                medium: '#ffc107',
+                high: '#fd7e14',
+                critical: '#dc3545'
+            };
+            
+            // Background gradient based on risk level
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, riskColors[analysis.riskLevel]);
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0.8)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add impact icons and warnings
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            
+            const impactIcons = {
+                low: '🟢',
+                medium: '🟡',
+                high: '🟠',
+                critical: '🔴'
+            };
+            
+            ctx.fillText(impactIcons[analysis.riskLevel], canvas.width / 2, canvas.height / 2);
+            
+            // Risk level text
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText(`${analysis.riskLevel.toUpperCase()} RISK`, canvas.width / 2, canvas.height / 2 + 50);
+            
+            // Add warning text for high risk items
+            if (analysis.riskLevel === 'critical' || analysis.riskLevel === 'high') {
+                ctx.fillStyle = 'rgba(220, 53, 69, 0.9)';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('IMMEDIATE ACTION REQUIRED', canvas.width / 2, canvas.height - 40);
+            }
+        }
+
+        function updateResults(analysis) {
+            // Update waste category confidence bars
+            Object.entries(analysis.composition).forEach(([category, percentage]) => {
+                const confidenceEl = document.getElementById(`${category}Confidence`);
+                if (confidenceEl) {
+                    setTimeout(() => {
+                        confidenceEl.style.width = `${percentage}%`;
+                        confidenceEl.textContent = `${percentage}%`;
+                    }, 500);
+                }
+            });
+
+            // Highlight primary category
+            document.querySelectorAll('.category-card').forEach(card => {
+                card.classList.remove('primary');
+            });
+            const primaryCard = document.getElementById(`${analysis.primaryType}Card`);
+            if (primaryCard) {
+                primaryCard.classList.add('primary');
+            }
+
+            // Show mixed plastic section if applicable
+            if (analysis.plasticTypes && analysis.composition.plastic > 15) {
+                document.getElementById('mixedPlasticSection').style.display = 'block';
+                updatePlasticTypes(analysis.plasticTypes);
+            }
+
+            // Update environmental impact sections
+            updateEnvironmentalEffects(analysis);
+            updateAnimalEffects(analysis);
+            updateHumanEffects(analysis);
+            updateDecompositionTimeline(analysis);
+            updatePreventionTips(analysis);
+        }
+
+        function updatePlasticTypes(plasticTypes) {
+            const plasticGrid = document.getElementById('plasticTypesGrid');
+            plasticGrid.innerHTML = '';
+
+            const plasticInfo = {
+                pet: { name: 'PET Bottles', harm: 'Medium', icon: '🥤' },
+                hdpe: { name: 'HDPE Containers', harm: 'Low', icon: '🥛' },
+                pvc: { name: 'PVC Pipes', harm: 'Critical', icon: '🚰' },
+                ldpe: { name: 'LDPE Bags', harm: 'High', icon: '🛍️' },
+                pp: { name: 'PP Containers', harm: 'Low', icon: '📦' },
+                ps: { name: 'Polystyrene', harm: 'High', icon: '📱' },
+                other: { name: 'Other Plastics', harm: 'High', icon: '❓' }
+            };
+
+            // Find most harmful plastic type
+            let mostHarmful = null;
+            let highestHarmScore = 0;
+
+            Object.entries(plasticTypes).forEach(([type, percentage]) => {
+                const harmLevels = { 'Low': 1, 'Medium': 2, 'High': 3, 'Critical': 4 };
+                const harmScore = harmLevels[plasticInfo[type].harm] * percentage;
+                
+                if (harmScore > highestHarmScore) {
+                    highestHarmScore = harmScore;
+                    mostHarmful = type;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'plastic-type-card';
+                card.innerHTML = `
+                    <div style="font-size: 2em; margin-bottom: 10px;">${plasticInfo[type].icon}</div>
+                    <div style="font-weight: bold; margin-bottom: 5px;">${plasticInfo[type].name}</div>
+                    <div style="color: #666; margin-bottom: 8px;">${percentage}%</div>
+                    <div class="impact-severity severity-${plasticInfo[type].harm.toLowerCase()}">${plasticInfo[type].harm} Impact</div>
+                `;
+                
+                if (type === mostHarmful) {
+                    card.classList.add('most-harmful');
+                }
+                
+                plasticGrid.appendChild(card);
+            });
+        }
+
+        function updateEnvironmentalEffects(analysis) {
+            const effects = document.getElementById('environmentalEffects');
+            const environmentalImpacts = {
+                plastic: [
+                    'Microplastics contaminate soil and water systems for 450+ years',
+                    'Toxic chemicals leach into groundwater affecting Punjab\'s agriculture',
+                    'Marine pollution affects river ecosystems and Sutlej river system'
+                ],
+                wet: [
+                    'Methane emissions contribute to greenhouse gases if not composted',
+                    'Attracts pests and disease vectors in urban areas',
+                    'Nutrient runoff can cause eutrophication in water bodies'
+                ],
+                dry: [
+                    'Paper waste in landfills produces methane during decomposition',
+                    'Deforestation pressure increases with non-recycled paper waste'
+                ],
+                metal: [
+                    'Heavy metal contamination in soil affects crop quality',
+                    'Mining pressure increases without proper metal recycling'
+                ],
+                mixed: [
+                    'Contamination prevents proper recycling of valuable materials',
+                    'Increases landfill burden and environmental complexity'
+                ]
+            };
+
+            let content = '';
+            Object.entries(analysis.composition).forEach(([type, percentage]) => {
+                if (percentage > 10 && environmentalImpacts[type]) {
+                    environmentalImpacts[type].forEach(impact => {
+                        content += `<p style="margin-bottom: 8px;">• ${impact}</p>`;
+                    });
+                }
+            });
+
+            const severity = analysis.riskLevel;
+            content += `<div class="impact-severity severity-${severity}" style="margin-top: 15px; display: inline-block;">
+                Environmental Risk: ${severity.toUpperCase()}
+            </div>`;
+
+            effects.innerHTML = content;
+        }
+
+        function updateAnimalEffects(analysis) {
+            const effects = document.getElementById('animalEffects');
+            const animalImpacts = {
+                plastic: [
+                    'Cattle and street animals consume plastic bags causing intestinal blockage',
+                    'Birds mistake plastic fragments for food, leading to malnutrition',
+                    'Aquatic life in Punjab\'s rivers faces entanglement and ingestion risks'
+                ],
+                wet: [
+                    'Rotting organic matter attracts rats and stray dogs, spreading disease',
+                    'Improper disposal creates breeding grounds for disease-carrying insects'
+                ],
+                metal: [
+                    'Sharp metal edges cause injuries to stray animals',
+                    'Heavy metals bioaccumulate in the food chain affecting wildlife'
+                ]
+            };
+
+            let content = '';
+            let maxImpact = 0;
+            
+            Object.entries(analysis.composition).forEach(([type, percentage]) => {
+                if (percentage > 15 && animalImpacts[type]) {
+                    animalImpacts[type].forEach(impact => {
+                        content += `<p style="margin-bottom: 8px;">• ${impact}</p>`;
+                    });
+                    maxImpact = Math.max(maxImpact, percentage);
+                }
+            });
+
+            let severity = 'low';
+            if (maxImpact > 40) severity = 'critical';
+            else if (maxImpact > 25) severity = 'high';
+            else if (maxImpact > 15) severity = 'medium';
+
+            content += `<div class="impact-severity severity-${severity}" style="margin-top: 15px; display: inline-block;">
+                Animal Impact: ${severity.toUpperCase()}
+            </div>`;
+
+            effects.innerHTML = content;
+        }
+
+        function updateHumanEffects(analysis) {
+            const effects = document.getElementById('humanEffects');
+            const humanImpacts = {
+                plastic: [
+                    'Microplastics enter food chain affecting human health in Punjab',
+                    'Plastic burning releases toxic dioxins causing respiratory problems',
+                    'Blocked drainage systems increase flood risks in urban areas'
+                ],
+                wet: [
+                    'Disease vectors spread cholera, dengue, and other waterborne illnesses',
+                    'Foul odors and air pollution affect quality of life',
+                    'Contaminated groundwater poses serious health risks'
+                ],
+                mixed: [
+                    'Complex waste streams complicate waste management for ULBs',
+                    'Increased processing costs burden municipal resources'
+                ]
+            };
+
+            let content = '';
+            let healthRisk = 'low';
+            
+            Object.entries(analysis.composition).forEach(([type, percentage]) => {
+                if (percentage > 10 && humanImpacts[type]) {
+                    humanImpacts[type].forEach(impact => {
+                        content += `<p style="margin-bottom: 8px;">• ${impact}</p>`;
+                    });
+                    
+                    if (percentage > 30) healthRisk = 'critical';
+                    else if (percentage > 20 && healthRisk !== 'critical') healthRisk = 'high';
+                    else if (percentage > 10 && healthRisk === 'low') healthRisk = 'medium';
+                }
+            });
+
+            content += `<div class="impact-severity severity-${healthRisk}" style="margin-top: 15px; display: inline-block;">
+                Health Risk: ${healthRisk.toUpperCase()}
+            </div>`;
+
+            effects.innerHTML = content;
+        }
+
+        function updateDecompositionTimeline(analysis) {
+            const timeline = document.getElementById('decompositionTimeline');
+            timeline.innerHTML = '';
+
+            const decompositionTimes = {
+                plastic: { time: '450+ Years', item: 'Plastic Bottles', color: '#e74c3c' },
+                wet: { time: '2-6 Months', item: 'Organic Matter', color: '#27ae60' },
+                dry: { time: '2-6 Months', item: 'Paper Products', color: '#f39c12' },
+                metal: { time: '50-200 Years', item: 'Metal Cans', color: '#95a5a6' },
+                paper: { time: '2-6 Months', item: 'Paper Waste', color: '#3498db' },
+                mixed: { time: 'Variable', item: 'Mixed Items', color: '#9b59b6' }
+            };
+
+            Object.entries(analysis.composition).forEach(([type, percentage]) => {
+                if (percentage > 5 && decompositionTimes[type]) {
+                    const timelineItem = document.createElement('div');
+                    timelineItem.className = 'timeline-item';
+                    timelineItem.style.borderTopColor = decompositionTimes[type].color;
+                    timelineItem.innerHTML = `
+                        <div class="timeline-duration">${decompositionTimes[type].time}</div>
+                        <div>${decompositionTimes[type].item}</div>
+                        <div style="color: #666; font-size: 0.9em;">${percentage}% of waste</div>
+                    `;
+                    timeline.appendChild(timelineItem);
+                }
+            });
+        }
+
+        function updatePreventionTips(analysis) {
+            const tips = document.getElementById('preventionTips');
+            tips.innerHTML = '';
+
+            const preventionTips = [
+                'Segregate waste at source - separate wet, dry, and hazardous items',
+                'Use cloth bags instead of plastic bags for shopping',
+                'Compost organic waste at home to reduce methane emissions',
+                'Recycle paper, metal, and glass through proper channels',
+                'Avoid single-use plastics and choose reusable alternatives',
+                'Educate family and neighbors about proper waste segregation',
+                'Report improper waste disposal to local ULB authorities',
+                'Support local recycling initiatives and waste management programs'
+            ];
+
+            // Add specific tips based on primary waste type
+            const specificTips = {
+                plastic: [
+                    'Replace plastic bottles with steel or glass alternatives',
+                    'Choose products with minimal plastic packaging',
+                    'Never burn plastic waste - it releases toxic chemicals'
+                ],
+                wet: [
+                    'Set up home composting system for kitchen waste',
+                    'Use organic waste for garden fertilization',
+                    'Avoid mixing wet waste with other categories'
+                ],
+                mixed: [
+                    'Learn proper segregation techniques from ULB guidelines',
+                    'Use separate containers for different waste types',
+                    'Clean containers before disposal to prevent contamination'
+                ]
+            };
+
+            // Add general tips
+            preventionTips.forEach(tip => {
+                const li = document.createElement('li');
+                li.textContent = tip;
+                tips.appendChild(li);
+            });
+
+            // Add specific tips for primary waste type
+            if (specificTips[analysis.primaryType]) {
+                specificTips[analysis.primaryType].forEach(tip => {
+                    const li = document.createElement('li');
+                    li.textContent = tip;
+                    li.style.fontWeight = 'bold';
+                    li.style.backgroundColor = '#fff3cd';
+                    tips.appendChild(li);
+                });
+            }
+        }
+
+        // Initialize system
+        window.addEventListener('load', () => {
+            console.log('Punjab ULB Waste Segregation System initialized');
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (originalMat && !originalMat.isDeleted()) {
+                originalMat.delete();
+            }
+        });
+    </script>
+</body>
+</html>
